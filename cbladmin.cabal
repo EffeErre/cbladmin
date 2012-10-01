@@ -16,16 +16,7 @@ cabal-version:       >=1.8
 executable cbladmin
     hs-source-dirs:  src
     main-is:         CblAdmin.hs
-    build-depends:   base      == 4.5.*,
-                     text      == 0.11.*,
-                     Cabal     == 1.14.*,
-                     json      == 0.5.*,
-                     process   == 1.1.*,
-                     directory == 1.1.*,
-
-executable cblupdate
-    hs-source-dirs:  src
-    main-is:         CabalUpdate.hs
+    extensions:      EmptyDataDecls
     build-depends:   base      == 4.5.*,
                      text      == 0.11.*,
                      Cabal     == 1.14.*,
@@ -33,4 +24,13 @@ executable cblupdate
                      process   == 1.1.*,
                      directory == 1.1.*,
                      MissingH  == 1.1.*,
-                     shelly    == 0.14.*
+                     hflags    == 0.1.*
+
+executable cblupdate
+    hs-source-dirs:  src
+    main-is:         CabalUpdate.hs
+    extensions:      EmptyDataDecls
+    build-depends:   base      == 4.5.*,
+                     text      == 0.11.*,
+                     shelly    == 0.14.*,
+                     hflags    == 0.1.*

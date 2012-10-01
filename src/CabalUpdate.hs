@@ -9,10 +9,10 @@ default (LT.Text)
 defineFlag "n:noupdate" False "Don't actually update, just copy files"
 
 setPaths = do
-    home <- getenv_def "" "HOME"
+    home <- get_env_text "HOME"
     setenv "cabalPath" ".cabal/packages/hackage.haskell.org"
     setenv "workdir" $ home `append` "/archhaskell"
-    workdir <- getenv_def "" "workdir"
+    workdir <- get_env_text "workdir"
     echo workdir
     setenv "mainRepo" $ workdir `append` "/habs"
     setenv "thisRepo" $ workdir `append` "/haskell-extra"
@@ -27,19 +27,19 @@ run_sudo cmd args = run "/usr/bin/sudo" (cmd:args)
 sudo_cp source target = run_sudo "cp" ("-t":target:source)
 
 copy_cblrepo = do
-    home <- getenv_def "" "HOME"
-    cabalPath <- getenv_def "" "cabalPath"
+    home <- get_env_text "HOME"
+    cabalPath <- get_env_text "cabalPath"
     let source = home </> cabalPath </> (Prelude.head source_files)
     cp source (home </> ".cblrepo/")
 
 tT = toTextIgnore
 main = do
-    args <- $(initHFlags "Update Cabal v0.1")
+    args <- $(initHFlags "Update Cabal v0.0.1")
     shelly $ do
-	home <- getenv_def "" "HOME"
+	home <- get_env_text "HOME"
 	setPaths
-	thisRepo <- getenv_def "" "thisRepo"
-	mainRepo <- getenv_def "" "mainRepo"
+	thisRepo <- get_env_text "thisRepo"
+	mainRepo <- get_env_text "mainRepo"
 	echo thisRepo
 	cd $ fromText thisRepo
 	chdir (fromText mainRepo) $ do
@@ -47,7 +47,7 @@ main = do
 	if flags_noupdate
 	    then echo "Keeping old cache"
 	    else run_ "cabal" ["update"]
-	cabalPath <- getenv_def "" "cabalPath"
+	cabalPath <- get_env_text "cabalPath"
 	copy_cblrepo
 	let src = Prelude.map (\f -> toTextIgnore $ home </> cabalPath </> f) source_files
 	sudo_cp src $ tT $ "/root" </> cabalPath
