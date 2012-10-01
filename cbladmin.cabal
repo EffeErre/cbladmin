@@ -1,0 +1,36 @@
+name:                cbladmin
+version:             0.0.1
+synopsis:            Script to keep an Arch Linux repository from Hackage
+description:         This script uses cblrepo and cabal to create and update an Arch Linux repository,
+                     taking packages from the Hackage database.
+license:             MIT
+author:              Fabio Riga
+maintainer:          rifabio@gmail.com
+copyright:           (c) 2012 Fabio Riga
+stability:           alpha
+category:            Distribution
+build-type:          Simple
+bug-reports:         mailto:rifabio@gmail.com
+cabal-version:       >=1.8
+
+executable cbladmin
+    hs-source-dirs:  src
+    main-is:         CblAdmin.hs
+    build-depends:   base      == 4.5.*,
+                     text      == 0.11.*,
+                     Cabal     == 1.14.*,
+                     json      == 0.5.*,
+                     process   == 1.1.*,
+                     directory == 1.1.*,
+
+executable cblupdate
+    hs-source-dirs:  src
+    main-is:         CabalUpdate.hs
+    build-depends:   base      == 4.5.*,
+                     text      == 0.11.*,
+                     Cabal     == 1.14.*,
+                     json      == 0.5.*,
+                     process   == 1.1.*,
+                     directory == 1.1.*,
+                     MissingH  == 1.1.*,
+                     shelly    == 0.14.*
