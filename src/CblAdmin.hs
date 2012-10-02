@@ -27,6 +27,9 @@ getVersion s = Version ver []
     where
 	ver = map (\x -> read x :: Int) (split "." s)
 
+-- Take a list of packages names and return all needed packages as CabalPkg.
+-- As cabal command will exclude already installed packages, we run the 
+-- command in the clean "root" chroot.
 getCabalList :: [String] -> IO [CabalPkg]
 getCabalList [] = return []
 getCabalList pkgNames = do
@@ -149,6 +152,10 @@ updateRepPkg (Just pkg) newVersion = do
 	    putStrLn $ (pkgName pkg) ++ " is already up-to-date."
 	    return Nothing
 
+-- Seach for upgraded packages in main (i.e. [habs]) repository
+distroUpgrades mainR =
+    map (\p -> lookupPkg mainR (pkgName p)) . filter (needsUpdateD (mainR)) . filter (isDistroPkg)
+   
 updateDistrPkg Nothing = return Nothing
 updateDistrPkg (Just pkg) = do
 	    putStrLn $ "Updating " ++ pkgName pkg ++ " from main repository [ " ++ showVersion (pkgVersion pkg) ++ " ]"
@@ -160,9 +167,6 @@ needsUpdateD mainR pkg =
     in (pkgVersion mainPkg) > (pkgVersion pkg) ||
 	((pkgVersion mainPkg) == (pkgVersion pkg) && (prel mainPkg) > (prel pkg))
 
-distroUpgrades mainR =
-    map (\p -> lookupPkg mainR (pkgName p)) . filter (needsUpdateD (mainR)) . filter (isDistroPkg)
-   
 bump []    = return ()
 bump names = do
     putStrLn "Bumping dependencies..."
@@ -199,7 +203,7 @@ getNames (Nothing:xs) = getNames xs
 getNames (Just (pn, _):xs) = pn:getNames xs
 
 main = do
-    args <- $(initHFlags "Execute Cabal install v0.1")
+    args <- $(initHFlags helpMessage)
     home <- getEnv "HOME"
     let workDir = home ++ "/archhaskell/haskell-extra/"
     setCurrentDirectory workDir
