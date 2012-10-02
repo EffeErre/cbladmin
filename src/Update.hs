@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
-import HFlags
+module Update
+    ( update
+    , listUpdates
+    ) where
 import System.Environment
 import System.Exit
 import System.Process
@@ -9,7 +12,21 @@ import System.Directory
 import Defaults
 import Helpers
 
-defineFlag "n:noupdate" False "Don't actually update, just copy files"
+update = do
+    home <- getEnv "HOME"
+
+    setCurrentDirectory $ home </> mainRepoDir
+    pullUpdates
+
+    cabalUpdate
+    copy_cblrepo
+
+    setCurrentDirectory $ home </> thisRepoDir
+    copyDbChroot
+
+-- | Update [habs] repository to latest version
+pullUpdates = do
+    rawSystem "git" ["pull", "upstream", "master"]
 
 sudoCp source target = sudo "cp" ("-t":target:source)
 
@@ -39,20 +56,7 @@ copyDbChroot = do
     sudo "mkdir" ("-p":tgt)
     mapM_ (sudoCp src) tgt
 
-main = do
-    args <- $(initHFlags "Update Cabal v0.0.1")
-    home <- getEnv "HOME"
-
-    -- Update [habs] repository to latest version
-    setCurrentDirectory $ home </> mainRepoDir
-    rawSystem "git" ["pull", "upstream", "master"]
-
-    if flags_noupdate
-	then putStrLn "Keeping old hackage cache"
-	else cabalUpdate
-    copy_cblrepo
-
-    setCurrentDirectory $ home </> thisRepoDir
-    copyDbChroot
+listUpdates = do
     putStrLn "==> Available updates:"
     rawSystem "cblrepo" ["updates"]
+    return ()

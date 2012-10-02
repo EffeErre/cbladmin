@@ -14,6 +14,7 @@ import Control.Monad (when)
 import PkgDB
 import Helpers
 import Defaults
+import Update
 
 -- | The status of a package in the cblrepo database.
 data PkgStatus  = RepPkg    -- ^ A package available in this repository
@@ -29,11 +30,19 @@ type CabalPkg = (String, Version)
 defineFlag "n:dryrun" False "Don't do anything, just try"
 defineFlag "u:upgradedistro" False "Upgrade DistroPkgs to version in main repository"
 defineFlag "b:build" False "Create pkgbuilds and compile"
+defineFlag "y:update" False "Update main repo and Hackage file list"
+defineFlag "l:listupdates" False "list available updates for packages in repository and exit"
 
 main = do
     args <- $(initHFlags helpMessage)
+    when flags_update $ update
+
     home <- getEnv "HOME"
     setCurrentDirectory $ home </> thisRepoDir
+
+    when flags_listupdates $ do
+        listUpdates
+        exitSuccess
 
     thisR <- readDb (home </> thisRepoDir </> "cblrepo.db")
     mainR <- readDb (home </> mainRepoDir </> "cblrepo.db")
