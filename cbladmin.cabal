@@ -1,5 +1,5 @@
 name:                cbladmin
-version:             0.1.1
+version:             0.2.0
 synopsis:            Script to keep an Arch Linux repository from Hackage
 description:         This script uses cblrepo and cabal to create and update an Arch Linux repository,
                      taking packages from the Hackage database.

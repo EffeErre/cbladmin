@@ -9,6 +9,7 @@ import System.FilePath
 import Data.String.Utils
 import Data.Version
 import Data.List
+import Data.Maybe
 import Control.Monad (when)
 
 import PkgDB
@@ -23,6 +24,17 @@ data PkgStatus  = RepPkg    -- ^ A package available in this repository
                 | NewPkg    -- ^ A package not present in the DB nor in [habs]
 	deriving (Show, Eq, Ord)
 
+-- | A simplyfied version of CblPkg
+data SimplePkg
+    = DisPkg { pName ::String
+             , pVersion :: Version
+             , pRelease :: String
+             }
+    | RePkg  { pName :: String
+             , pVersion ::Version
+             }
+    deriving (Show, Eq, Ord)
+
 -- | A convenient type
 type CabalPkg = (String, Version)
 
@@ -31,7 +43,8 @@ defineFlag "n:dryrun" False "Don't do anything, just try"
 defineFlag "u:upgradedistro" False "Upgrade DistroPkgs to version in main repository"
 defineFlag "b:build" False "Create pkgbuilds and compile"
 defineFlag "y:update" False "Update main repo and Hackage file list"
-defineFlag "l:listupdates" False "list available updates for packages in repository and exit"
+defineFlag "l:listupdates" False
+    "list available updates for packages in repository and exit"
 
 main = do
     args <- $(initHFlags helpMessage)
@@ -47,14 +60,18 @@ main = do
     thisR <- readDb (home </> thisRepoDir </> "cblrepo.db")
     mainR <- readDb (home </> mainRepoDir </> "cblrepo.db")
 
-    upgradedList <- if flags_upgradedistro
-		    then mapM syncDistrPkg $ distroUpgrades mainR thisR
-		    else return []
+    let upgradeList =  if flags_upgradedistro
+                            then distroUpgrades mainR thisR
+                            else []
 
     let list = filter (newCblPkg thisR mainR) args 
-    installList <- getCabalList list
-    updatedList <- mapM (addCblPkg thisR mainR) installList
-    let names =  getNames (upgradedList ++ updatedList)
+    cabalList <- getCabalList list
+    let newList = catMaybes $ map (makeSimplePkg thisR mainR) cabalList
+    let installList = upgradeList ++ newList
+    let names =  getNames installList
+
+    -- Do the job!
+    addCblPkgs installList
     putStrLn $ unwords names
     bump names
     when flags_build $ build names
@@ -62,9 +79,9 @@ main = do
 
 -- | For each DistroPkg search if there's a newer version in the main
 -- repository.
-distroUpgrades :: CblDB -> CblDB -> [Maybe CblPkg]
+distroUpgrades :: CblDB -> CblDB -> [SimplePkg]
 distroUpgrades mainR =
-    map (\p -> lookupPkg mainR (pkgName p))
+    map toSimpleDisPkg . catMaybes . map (\p -> lookupPkg mainR (pkgName p))
         . filter (needsUpdateD (mainR)) . filter (isDistroPkg)
   where
     needsUpdateD mainR pkg = 
@@ -73,14 +90,6 @@ distroUpgrades mainR =
         in (pkgVersion mainPkg) > (pkgVersion pkg) ||
             ((pkgVersion mainPkg) == (pkgVersion pkg) && (prel mainPkg) > (prel pkg))
 
--- | Sync a DistroPkg whit the latest available in main repository
-syncDistrPkg :: Maybe CblPkg -> IO (Maybe CabalPkg)
-syncDistrPkg Nothing = return Nothing
-syncDistrPkg (Just pkg) = do
-    putStrLn $ "Updating " ++ pkgName pkg ++ " from main repository [ "
-        ++ showVersion (pkgVersion pkg) ++ " ]"
-    addDistrPkg $ Just pkg
-    
 -- | Check if a package is already in [habs]
 -- TODO: it should be in any other repository, not just habs.
 newCblPkg thisR mainR name = 
@@ -112,11 +121,8 @@ getCabalList pkgNames = do
     getVersion s = Version (ver s) []
     ver s = map (\x -> read x :: Int) (split "." s)
 
-onlyRepoPkg thisR pkgName =
-    case lookupPkg thisR pkgName of
-	Nothing -> False
-	Just pkg -> isRepoPkg pkg
-
+-- | Checks wheter a given package is new, a RepoPkg, a DistroPkg or from the
+-- main repository.
 checkPkgStatus :: String -> CblDB -> CblDB -> (PkgStatus, Maybe CblPkg)
 checkPkgStatus name thisR mainR =
     case lookupPkg thisR name of 
@@ -128,52 +134,37 @@ checkPkgStatus name thisR mainR =
 		Just pkg -> (MainPkg, Just pkg)
 		Nothing -> (NewPkg, Nothing)
 
-preparePkg :: CblDB -> CblDB -> CabalPkg -> [String]
-preparePkg thisR mainR (pn, pv) =
+-- | takes the name and version of a package to be installed from Cabal
+-- and returns the appropriate SimplePkg
+makeSimplePkg :: CblDB -> CblDB -> CabalPkg -> Maybe SimplePkg
+makeSimplePkg thisR mainR (pn, pv) =
     case pkgType of
-	MainPkg  -> ["-d", distrPkgString pkg]
-	NewPkg   -> repoPkgString pn pv
-	RepPkg   -> repoPkgString' pkg pv
-	DistrPkg -> []
-    where
-	(pkgType, pkg) = checkPkgStatus pn thisR mainR
-	distrPkgString (Just pkg) = pkgName pkg ++ "," ++ (showVersion $ pkgVersion pkg) ++ "," ++ pkgRelease pkg
-	repoPkgString pn pv = [pn ++ "," ++ (showVersion pv)]
-	repoPkgString' (Just pkg) pv =
-	    if pv > pkgVersion pkg
-		then repoPkgString (pkgName pkg) pv
-		else []
-	
-
-addCblPkgs :: CblDB -> [String] -> IO ()
-addCblPkgs thisR list = do
-    -- let args = commonArgs ++ list
-    let args = list
-    putStrLn $ "Adding repoPkgs " ++ (intercalate ", " list) ++ "... "
-    res <- if flags_dryrun
-	then do
-	    putStr "(dry-run) "
-	    cblrepoN "add" args
-	else cblrepo "add" args
-    putStr res
-    when (res /= "") exitFailure
-    putStrLn "Done."
-    return $ ()
-    
-addCblPkg :: CblDB -> CblDB -> CabalPkg -> IO (Maybe CabalPkg)
-addCblPkg thisR mainR (pn, pv) =
-    case pkgType of
-	MainPkg  -> addDistrPkg pkg
-	NewPkg   -> addRepPkg (pn, pv)
+	MainPkg  -> addDisPkg pkg
+	NewPkg   -> Just $ RePkg pn pv
 	RepPkg   -> updateRepPkg pkg pv
-	DistrPkg -> return Nothing
-    where (pkgType, pkg) = checkPkgStatus pn thisR mainR
+	DistrPkg -> Nothing
+  where
+    (pkgType, pkg) = checkPkgStatus pn thisR mainR
+    updateRepPkg (Just pkg) nv =
+        if (nv > pkgVersion pkg)
+            then Just $ toSimplePkg pkg
+            else Nothing
+    addDisPkg pkg =
+        case pkg of
+            Just p -> Just $ toSimpleDisPkg p
+            Nothing -> Nothing
 
--- commonArgs = ["--db", thisRepoF]
-addDistrPkg (Just pkg) = do
-    -- let args = commonArgs ++ ["-d", pkgString]
-    let args = ["-d", pkgString]
-    putStr $ "Adding distroPkg " ++ pkgString' ++ "... "
+-- | Add all packages with a call to cblrepo.
+addCblPkgs :: [SimplePkg] -> IO ()
+addCblPkgs list = do
+    putStrLn "==> The following DistroPkgs will be added:"
+    putStrLn $ unlines (map distroPkgString' list)
+    putStrLn "\n"
+    putStrLn "==> The following RepoPkgs will be added:"
+    putStrLn $ unlines (map repoPkgString' list)
+
+    let (disList, reList) = partition isDisPkg list
+    let args = (map distroPkgString $ disList) ++ (map repoPkgString $ reList)
     res <- if flags_dryrun
 	then do
 	    putStr "(dry-run) "
@@ -182,38 +173,16 @@ addDistrPkg (Just pkg) = do
     putStr res
     when (res /= "") exitFailure
     putStrLn "Done."
-    return (Just (pkgName pkg, pkgVersion pkg))
-    where
-	pkgString = pkgName pkg ++ "," ++ (showVersion $ pkgVersion pkg) ++ "," ++ pkgRelease pkg
-	pkgString' = pkgName pkg ++ "-" ++ (showVersion $ pkgVersion pkg) ++ "-" ++ pkgRelease pkg
-
-addRepPkg (pn, pv) = do
-    -- let args = commonArgs ++ [pkgString]
-    let args = [pkgString]
-    putStrLn $ "Adding repoPkg " ++ pkgString' ++ "... "
-    res <- if flags_dryrun
-	then do
-	    putStr "(dry-run) "
-	    cblrepoN "add" args
-	else cblrepo "add" args
-    putStr res
-    when (res /= "") exitFailure
-    putStrLn "Done."
-    return $ Just (pn, pv)
-    where
-	pkgString = pn ++ "," ++ (showVersion pv)
-	pkgString' = pn ++ "-" ++ (showVersion pv)
-
-updateRepPkg (Just pkg) newVersion = do
-    let needsUpdate = newVersion > pkgVersion pkg
-    if needsUpdate
-	then do
-	    putStrLn $ "Updating " ++ pkgName pkg ++ " [ " ++ showVersion (pkgVersion pkg) ++ " -> " ++ showVersion newVersion ++ " ]"
-	    addRepPkg (pkgName pkg, newVersion)
-	else do
-	    putStrLn $ (pkgName pkg) ++ " is already up-to-date."
-	    return Nothing
-
+  where
+    distroPkgString pkg =
+        "--distro-pkg=" ++ repoPkgString pkg ++ "," ++ pRelease pkg
+    repoPkgString pkg =
+        pName pkg ++ "," ++ (showVersion $ pVersion pkg)
+    distroPkgString' pkg =
+        repoPkgString' pkg ++ "-" ++ pRelease pkg
+    repoPkgString' pkg =
+        pName pkg ++ "-" ++ (showVersion $ pVersion pkg)
+    
 -- | Call cblrepo to /bump/ packages depending on updated packages.
 bump :: [String] -> IO ()
 bump []    = return ()
@@ -250,8 +219,18 @@ build names = do
 	then return()
 	else exitFailure
 
-getNames :: [Maybe CabalPkg] -> [String]
+getNames :: [SimplePkg] -> [String]
 getNames [] = []
-getNames (Nothing:xs) = getNames xs
-getNames (Just (pn, _):xs) = pn:getNames xs
+getNames pkgs = map pName pkgs
 
+-- | Convert CblPkg to SimplePkg
+toSimplePkg :: CblPkg -> SimplePkg
+toSimplePkg (n, DistroPkg v r) = DisPkg n v r
+toSimplePkg (n, p) = RePkg n (version p)
+
+-- | Convert RepoPkg in main to DisPkg in current repository
+toSimpleDisPkg :: CblPkg -> SimplePkg
+toSimpleDisPkg (n, RepoPkg v _ r) = DisPkg n v r
+
+isDisPkg DisPkg {} = True
+isDisPkg _ = False
