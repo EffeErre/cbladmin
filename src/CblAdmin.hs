@@ -10,7 +10,7 @@ import Data.String.Utils
 import Data.Version
 import Data.List
 import Data.Maybe
-import Control.Monad (when)
+import Control.Monad (when, unless)
 
 import PkgDB
 import Helpers
@@ -72,7 +72,7 @@ main = do
 
     -- Do the job!
     addCblPkgs installList
-    putStrLn $ unwords names
+    unless flags_dryrun $ logNames "updates" names
     bump names
     when flags_build $ build names
 
@@ -147,7 +147,7 @@ makeSimplePkg thisR mainR (pn, pv) =
     (pkgType, pkg) = checkPkgStatus pn thisR mainR
     updateRepPkg (Just pkg) nv =
         if (nv > pkgVersion pkg)
-            then Just $ toSimplePkg pkg
+            then Just $ (toSimplePkg pkg) { pVersion = nv }
             else Nothing
     addDisPkg pkg =
         case pkg of
@@ -157,13 +157,14 @@ makeSimplePkg thisR mainR (pn, pv) =
 -- | Add all packages with a call to cblrepo.
 addCblPkgs :: [SimplePkg] -> IO ()
 addCblPkgs list = do
+    let (disList, reList) = partition isDisPkg list
+
     putStrLn "==> The following DistroPkgs will be added:"
-    putStrLn $ unlines (map distroPkgString' list)
+    putStrLn $ unlines (map distroPkgString' disList)
     putStrLn "\n"
     putStrLn "==> The following RepoPkgs will be added:"
-    putStrLn $ unlines (map repoPkgString' list)
+    putStrLn $ unlines (map repoPkgString' reList)
 
-    let (disList, reList) = partition isDisPkg list
     let args = (map distroPkgString $ disList) ++ (map repoPkgString $ reList)
     res <- if flags_dryrun
 	then do
@@ -209,6 +210,7 @@ build names = do
 	    return $ words l
     putStrLn "Preparing pkgbuild for the following packages:"
     putStrLn $ unwords list
+    logNames "builds" list
     cblrepo "pkgbuild" list
     code <- system $ "sudo ./makeahpkg -x -- " ++ (unwords list)
     if code == ExitSuccess
@@ -234,3 +236,9 @@ toSimpleDisPkg (n, RepoPkg v _ r) = DisPkg n v r
 
 isDisPkg DisPkg {} = True
 isDisPkg _ = False
+
+-- | For tracking changes
+logNames :: String -> [String] -> IO ()
+logNames f ns = do
+    date <- readProcess "date" ["+%Y-%m-%d %H:%M:%S"] []
+    appendFile (f ++ ".log") ((init date) ++ ": " ++ (unwords ns) ++ "\n")
