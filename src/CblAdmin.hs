@@ -26,7 +26,7 @@ data PkgStatus  = RepPkg    -- ^ A package available in this repository
 
 -- | A simplyfied version of CblPkg
 data SimplePkg
-    = DisPkg { pName ::String
+    = DisPkg { pName :: String
              , pVersion :: Version
              , pRelease :: String
              }
@@ -74,7 +74,7 @@ main = do
     addCblPkgs installList
     unless flags_dryrun $ logNames "updates" names
     bump names
-    when flags_build $ build names
+    when flags_build $ build installList
 
 
 -- | For each DistroPkg search if there's a newer version in the main
@@ -198,7 +198,7 @@ bump names = do
 -- | Build needed package. If there was a sync with main repository, it will
 -- build all database. It needs root privilegs to run in chroot. Sudo should
 -- be present in your system and configured as needed.
-build :: [String] -> IO ()
+build :: [SimplePkg] -> IO ()
 build []    = return ()
 build names = do
     list <- if flags_upgradedistro
@@ -206,7 +206,7 @@ build names = do
 	    l <- cblrepo "build" ["base"]
 	    return $ tail (words l)
 	else do
-	    l <- cblrepo "build" names
+	    l <- cblrepo "build" $ getNames (filter isRePkg names)
 	    return $ words l
     putStrLn "Preparing pkgbuild for the following packages:"
     putStrLn $ unwords list
@@ -236,6 +236,7 @@ toSimpleDisPkg (n, RepoPkg v _ r) = DisPkg n v r
 
 isDisPkg DisPkg {} = True
 isDisPkg _ = False
+isRePkg = not . isDisPkg
 
 -- | For tracking changes
 logNames :: String -> [String] -> IO ()

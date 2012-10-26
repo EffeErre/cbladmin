@@ -4,7 +4,7 @@ import System.FilePath
 
 workdir = "archhaskell"
 mainRepoDir = workdir </> "habs"
-thisRepoDir = workdir </> "haskell-extra"
+thisRepoDir = workdir </> "habs-web"
 
 cabalPath = ".cabal/packages/hackage.haskell.org/"
 chrootRootDir = "x86_64-chroot/root/"

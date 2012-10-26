@@ -14,7 +14,7 @@ cblrepoN cmd args = readProcess "cblrepo" (cmd:"-n":args) []
 
 helpMessage = unlines [
     "Keep your ArchHaskell repository synced and up-to-date.",
-    "Version: 0.0.1", "",
+    "Version: 0.2.3", "",
     "USAGE: cbladmin [-n] [-u] [-b] [pkg1] .. [pkgN]", "",
     "'pkg' can be anything that cabal-install understand",
     "  cbladmin foo                 Package from the hackage server",
