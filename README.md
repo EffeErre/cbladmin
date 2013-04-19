@@ -50,3 +50,4 @@ can think of `cbladmin` as an expansion of [cblrepo][cblrepo].
 [cabal-install]: http://hackage.haskell.org/package/cabal-install
 [cblrepo]: https://github.com/magthe/cblrepo
 [arch]: http://www.archlinux.org
+[main-repo]: https://github.com/archhaskell/habs
