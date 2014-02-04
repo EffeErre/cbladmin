@@ -60,6 +60,8 @@ copy_cblrepo = do
     let source = home </> cabalPath </> (Prelude.head sourceFiles)
     createDirectoryIfMissing False (home </> ".cblrepo")
     rawSystem "cp" [source,(home </> ".cblrepo/")]
+    rawSystem "ln" ["-s",(home </> ".cblrepo" </> (Prelude.head sourceFiles))
+                   , (home </> ".cblrepo" </> cblrepoIdx)]
 
 -- Copy hackage files from ~/.cabal to root and chroot directories. This is
 -- needed to run cabal install in a clean chroot so dependencies are always

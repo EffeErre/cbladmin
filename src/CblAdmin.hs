@@ -243,12 +243,12 @@ getNames pkgs = map pName pkgs
 
 -- | Convert CblPkg to SimplePkg
 toSimplePkg :: CblPkg -> SimplePkg
-toSimplePkg (n, DistroPkg v r) = DisPkg n v r
-toSimplePkg (n, p) = RePkg n (version p)
+toSimplePkg (CP n (DistroPkg v r)) = DisPkg n v r
+toSimplePkg (CP n p) = RePkg n (version p)
 
 -- | Convert RepoPkg in main to DisPkg in current repository
 toSimpleDisPkg :: CblPkg -> SimplePkg
-toSimpleDisPkg (n, RepoPkg v _ r) = DisPkg n v r
+toSimpleDisPkg (CP n (RepoPkg v _ _ r)) = DisPkg n v r
 
 isDisPkg DisPkg {} = True
 isDisPkg _ = False

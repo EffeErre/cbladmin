@@ -26,11 +26,11 @@ chroot :: String -> String -> [String] -> IO String
 chroot chrootDir cmd args = sudo "chroot" (chrootDir:"/bin/bash":"-c":[unwords (cmd:args)])
 
 cblrepo cmd args = readProcess "cblrepo" (cmd:args) []
-cblrepoN cmd args = readProcess "cblrepo" (cmd:"-n":args) []
+cblrepoN cmd args = readProcess "cblrepo" ("-n":cmd:args) []
 
 helpMessage = unlines [
     "Keep your ArchHaskell repository synced and up-to-date.",
-    "Version: 0.2.3", "",
+    "Version: 0.2.4", "",
     "USAGE: cbladmin [-n] [-u] [-b] [pkg1] .. [pkgN]", "",
     "'pkg' can be anything that cabal-install understand",
     "  cbladmin foo                 Package from the hackage server",
